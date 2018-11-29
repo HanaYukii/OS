@@ -13,17 +13,57 @@ int tmp[maxn];
 int gap[15],done[15],incan[15];
 int thr_cnt;
 int thr_run[8];
-sem_t Free[16],se[2],work;
-queue<int>can;
+sem_t Free[16],se[2],work,patch;
+vector<int>can;
 int fin;
+int d;
 void* dispatch(void* arg){
     sem_wait(&se[0]);
+    d=0;
     for(int i=0;i<8;i++){
-    	can.push(i);
-    	sem_post(&work);
-    	incan[i]=1;
+        can.push_back(i);
+        sem_post(&work);
+        incan[i]=1;
     }
-
+    while(1){
+        sem_wait(&patch);
+        if(done[0]&&done[1]&&!incan[8]){
+            incan[8]=1;
+            can.push_back(8);
+            sem_post(&work);
+        }
+        if(done[2]&&done[3]&&!incan[9]){
+            incan[9]=1;
+            can.push_back(9);
+            sem_post(&work);
+        }
+        if(done[4]&&done[5]&&!incan[10]){
+            incan[10]=1;
+            can.push_back(10);
+            sem_post(&work);
+        }
+        if(done[6]&&done[7]&&!incan[11]){
+            incan[11]=1;
+            can.push_back(11);
+            sem_post(&work);
+        }
+        if(done[8]&&done[9]&&!incan[12]){
+            incan[12]=1;
+            can.push_back(12);
+            sem_post(&work);
+        }
+        if(done[10]&&done[11]&&!incan[13]){
+            incan[13]=1;
+            can.push_back(13);
+            sem_post(&work);
+        }
+        if(done[12]&&done[13]&&!incan[14]){
+            incan[14]=1;
+            can.push_back(14);
+            sem_post(&work);
+            break;
+        }
+    }
 }
 
 void bubblee(int arg){
@@ -36,11 +76,7 @@ void bubblee(int arg){
         }
     }
     done[k]=1;
-    if(done[k]&&done[k^1]&&!incan[k/2+8]){
-    	incan[k/2+8]=1;
-    	can.push(k/2+8);
-    	sem_post(&work);
-    }
+    sem_post(&patch);
 }
 
 void merge11(int arg){
@@ -64,11 +100,7 @@ void merge11(int arg){
         cont[i]=tmp[i];
     }
     done[k]=1;
-    if(done[k]&&done[k^1]&&!incan[(k-8)/2+12]){
-    	incan[(k-8)/2+12]=1;
-    	can.push((k-8)/2+12);
-    	sem_post(&work);
-    }
+    sem_post(&patch);
 }
 
 void merge22(int arg){
@@ -92,12 +124,7 @@ void merge22(int arg){
         cont[i]=tmp[i];
     }
     done[k]=1;
-    if(done[12]&&done[13]&&!incan[14]){
-    	incan[14]=1;
-    	can.push(14);
-    	sem_post(&work);
-
-    }
+    sem_post(&patch);
 }
 void merge33(int arg){
     int k = arg;
@@ -124,8 +151,7 @@ void merge33(int arg){
 void* run(void* arg){
     while(1){
         sem_wait(&work);
-        int kk=can.front();
-        can.pop();
+        int kk=can[d++];
         //cout<<kk<<endl;
         if(kk<8){
             bubblee(kk);
@@ -139,7 +165,6 @@ void* run(void* arg){
         else{
             merge33(kk);
             sem_post(&se[1]);
-            flag=1;
         }
     }
 }
@@ -154,7 +179,7 @@ int main(){
         gap[i]=n*i/8;
     }  
     pthread_t dis,thread[8];
-    for(int i=1;i<=4;i++){
+    for(int i=1;i<=8;i++){
         struct timeval start,endd;
         
         for(int j=0;j<2;j++){
@@ -164,11 +189,10 @@ int main(){
             sem_init(&Free[j],1,0);
         }
         sem_init(&work,1,0);
-	    while(!can.empty()){
-	    	empty.pop();
-	    }
-	    memset(done,0,sizeof(done));
-	    memset(incan,0,sizeof(incan));
+        sem_init(&patch,1,0);
+        can.clear();
+        memset(done,0,sizeof(done));
+        memset(incan,0,sizeof(incan));
         pthread_create(&dis, NULL , dispatch , NULL);
         for(int j=0;j<i;j++){
             int *k = (int*)malloc(sizeof(int));
@@ -181,22 +205,14 @@ int main(){
         gettimeofday(&endd, 0);
         int sec = endd.tv_sec - start.tv_sec;
         int usec = endd.tv_usec - start.tv_usec;
-        /*for(int j=0;j<n;j++){
-        	cout<<cont[j]<<' ';
-        }
-        cout<<endl;*/
         printf("Multi:%f ms\n", sec * 1000 + (usec / 1000.0));
         for(int j=0;j<n;j++){
             cont[j]=usort[j];
         }
         for(int i=0;i<2;i++){
-        	sem_destroy(&se[i]);
-	    }
-	    for(int i=0;i<16;i++){
-	        sem_destroy(&Free[i]);
-	    }
-	    sem_destroy(&work);
-	    sem_destroy(&rem);
+            sem_destroy(&se[i]);
+        }
+        sem_destroy(&work);
     }
 
     
