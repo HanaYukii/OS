@@ -8,61 +8,39 @@
 #include <sys/time.h>
 using namespace std;
 #define maxn 1000005
-int cont[maxn],usort[maxn],n;
+int cont[maxn],usort[maxn],n,flag;
 int tmp[maxn];
-int gap[15],done[15];
+int gap[15],done[15],incan[15];
 int thr_cnt;
 int thr_run[8];
-sem_t free[16],s[2];
+sem_t Free[16],se[2],work;
 queue<int>can;
-queue<int>empty;
 int fin;
 void* dispatch(void* arg){
-     int k = *((int *) arg);
-     sem_wait(&s[0]);
-     while(fin<15){
-        if(empty.size()){
-            int now=empty.front();
-            empty.pop();
-            fin++;
-            thr_run[now]=can.front();
-            can.pop();
-            sem_post(&free[now]);
-        }
-     }
-     pthread_exit(NULL);
-}
-void* run(void* arg){
-    int k = *((int *) arg);
-    while(!flag){
-        sem_wait(free[k]);
-        if(k<8){
-            bubblee(k);
-        }
-        else if(k<12){
-            merge11(k);
-        }
-        else if(k<14){
-            merge22(k);
-        }
-        else{
-            merge33(k);
-            sem_post(&s[1]);
-            flag=1;
-        }
-        empty.push(k);
+    sem_wait(&se[0]);
+    for(int i=0;i<8;i++){
+    	can.push(i);
+    	sem_post(&work);
+    	incan[i]=1;
     }
+
 }
+
 void bubblee(int arg){
-     int k = arg;
-     for(int i=gap[k];i<gap[k+1];i++){
+    int k = arg;
+    for(int i=gap[k];i<gap[k+1];i++){
         for(int j=i+1;j<gap[k+1];j++){
             if(cont[i]>cont[j]){
                 swap(cont[i],cont[j]);
             }
         }
-     }
-     done[k]=1;
+    }
+    done[k]=1;
+    if(done[k]&&done[k^1]&&!incan[k/2+8]){
+    	incan[k/2+8]=1;
+    	can.push(k/2+8);
+    	sem_post(&work);
+    }
 }
 
 void merge11(int arg){
@@ -86,6 +64,11 @@ void merge11(int arg){
         cont[i]=tmp[i];
     }
     done[k]=1;
+    if(done[k]&&done[k^1]&&!incan[(k-8)/2+12]){
+    	incan[(k-8)/2+12]=1;
+    	can.push((k-8)/2+12);
+    	sem_post(&work);
+    }
 }
 
 void merge22(int arg){
@@ -109,6 +92,12 @@ void merge22(int arg){
         cont[i]=tmp[i];
     }
     done[k]=1;
+    if(done[12]&&done[13]&&!incan[14]){
+    	incan[14]=1;
+    	can.push(14);
+    	sem_post(&work);
+
+    }
 }
 void merge33(int arg){
     int k = arg;
@@ -132,7 +121,28 @@ void merge33(int arg){
     }
     done[k]=1;
 }
-
+void* run(void* arg){
+    while(1){
+        sem_wait(&work);
+        int kk=can.front();
+        can.pop();
+        //cout<<kk<<endl;
+        if(kk<8){
+            bubblee(kk);
+        }
+        else if(kk<12){
+            merge11(kk);
+        }
+        else if(kk<14){
+            merge22(kk);
+        }
+        else{
+            merge33(kk);
+            sem_post(&se[1]);
+            flag=1;
+        }
+    }
+}
 int main(){
     cin>>n;
     for(int i=0;i<n;i++){
@@ -144,41 +154,51 @@ int main(){
         gap[i]=n*i/8;
     }  
     pthread_t dis,thread[8];
-    for(int i=1;i<=8;i++){
+    for(int i=1;i<=4;i++){
         struct timeval start,endd;
-        thr_cnt=i;
-        fin=0;
+        
         for(int j=0;j<2;j++){
-            sem_init(&s[j],1,0);
+            sem_init(&se[j],1,0);
         }
-        for(int j=0;j<2;j++){
-            sem_init(&free[j],1,0);
+        for(int j=0;j<16;j++){
+            sem_init(&Free[j],1,0);
         }
-        /*int *k = (int*)malloc(sizeof(int));
-        *k=i;*/
+        sem_init(&work,1,0);
+	    while(!can.empty()){
+	    	empty.pop();
+	    }
+	    memset(done,0,sizeof(done));
+	    memset(incan,0,sizeof(incan));
         pthread_create(&dis, NULL , dispatch , NULL);
-        for(int j=0;j<thr_cnt;j++){
+        for(int j=0;j<i;j++){
             int *k = (int*)malloc(sizeof(int));
             *k=j;
             pthread_create(&thread[j], NULL , run , (void *)k);
         }
         gettimeofday(&start, 0);
-        sem_post(&s[0]);
-        sem_wait(&s[1]);
+        sem_post(&se[0]);
+        sem_wait(&se[1]);
         gettimeofday(&endd, 0);
         int sec = endd.tv_sec - start.tv_sec;
         int usec = endd.tv_usec - start.tv_usec;
-        printf("Multi:%f ms\n", sec * 1000 + (usec / 1000.0));
-        for(int i=0;i<n;i++){
-            cont[i]=usort[i];
+        /*for(int j=0;j<n;j++){
+        	cout<<cont[j]<<' ';
         }
+        cout<<endl;*/
+        printf("Multi:%f ms\n", sec * 1000 + (usec / 1000.0));
+        for(int j=0;j<n;j++){
+            cont[j]=usort[j];
+        }
+        for(int i=0;i<2;i++){
+        	sem_destroy(&se[i]);
+	    }
+	    for(int i=0;i<16;i++){
+	        sem_destroy(&Free[i]);
+	    }
+	    sem_destroy(&work);
+	    sem_destroy(&rem);
     }
 
-    for(int i=0;i<2;i++){
-        sem_destroy(&s[i]);
-    }
-    for(int i=0;i<16;i++){
-        sem_destroy(&free[i]);
-    }
+    
     return 0;
 }
