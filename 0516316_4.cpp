@@ -1,10 +1,4 @@
-/*
-Student No.: 0516316
-Student Name: 呂爾軒
-Email: islu245777@gmail.com
-SE tag: xnxcxtxuxoxsx
-Statement: I am fully aware that this program is not supposed to be posted to a public server, such as a public GitHub repository or a public web page. 
-*/
+
 #include <bits/stdc++.h>
 #include <unistd.h>
 #include <pthread.h>
